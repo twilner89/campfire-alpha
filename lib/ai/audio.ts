@@ -155,6 +155,22 @@ export async function generateBibleAudio(bibleId: string) {
 
   const adminClient = createServerSupabaseClient({ admin: true });
 
+  let introText = "";
+
+  const episode1Attempt = await adminClient
+    .from("episodes")
+    .select("narrative_text")
+    .eq("season_num", 1)
+    .eq("episode_num", 1)
+    .limit(1);
+
+  if (!episode1Attempt.error) {
+    const ep1Text = ((episode1Attempt.data?.[0] as { narrative_text?: string | null } | undefined)?.narrative_text ?? "").trim();
+    if (ep1Text) {
+      introText = ep1Text;
+    }
+  }
+
   // Try to fetch exposition/narrative_intro if they exist; fall back to known columns.
   let row: unknown = null;
   {
@@ -180,15 +196,17 @@ export async function generateBibleAudio(bibleId: string) {
     throw new Error("Series bible not found.");
   }
 
-  const introText = buildBibleIntroText(row as {
-    title?: string | null;
-    genre?: string | null;
-    tone?: string | null;
-    premise?: string | null;
-    bible_json?: unknown;
-    exposition?: string | null;
-    narrative_intro?: string | null;
-  });
+  if (!introText.trim()) {
+    introText = buildBibleIntroText(row as {
+      title?: string | null;
+      genre?: string | null;
+      tone?: string | null;
+      premise?: string | null;
+      bible_json?: unknown;
+      exposition?: string | null;
+      narrative_intro?: string | null;
+    });
+  }
 
   if (!introText.trim()) {
     throw new Error("Intro text is empty.");
