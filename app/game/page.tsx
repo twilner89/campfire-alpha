@@ -129,15 +129,31 @@ export default async function GamePage() {
   const typedEpisode = (episode as unknown as Episode | null) ?? null;
 
   let introAudioUrl: string | null = null;
-  if (!currentEpisodeId && currentBibleId) {
-    const attempt = await supabase
-      .from("series_bible")
-      .select("intro_audio_url")
-      .eq("id", currentBibleId)
-      .maybeSingle();
+  const needsIntroAudio = !typedEpisode?.audio_url;
+  if (needsIntroAudio) {
+    if (currentBibleId) {
+      const attempt = await supabase
+        .from("series_bible")
+        .select("intro_audio_url")
+        .eq("id", currentBibleId)
+        .maybeSingle();
 
-    if (!attempt.error) {
-      introAudioUrl = ((attempt.data as { intro_audio_url?: string | null } | null)?.intro_audio_url ?? null) || null;
+      if (!attempt.error) {
+        introAudioUrl = ((attempt.data as { intro_audio_url?: string | null } | null)?.intro_audio_url ?? null) || null;
+      }
+    }
+
+    if (!introAudioUrl) {
+      const latestAttempt = await supabase
+        .from("series_bible")
+        .select("intro_audio_url")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!latestAttempt.error) {
+        introAudioUrl = ((latestAttempt.data as { intro_audio_url?: string | null } | null)?.intro_audio_url ?? null) || null;
+      }
     }
   }
 

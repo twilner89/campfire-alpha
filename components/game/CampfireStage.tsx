@@ -41,9 +41,8 @@ export default function CampfireStage(props: {
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrl = (
-    (episode?.audio_url ?? "").trim() || (!episode?.id ? (introAudioUrl ?? "").trim() : "")
-  ).trim();
+  const isIntroFallback = !(episode?.audio_url ?? "").trim() && !!(introAudioUrl ?? "").trim();
+  const audioUrl = ((episode?.audio_url ?? "").trim() || (introAudioUrl ?? "").trim()).trim();
 
   const listenedKey = useMemo(() => {
     if (!episode?.id) return null;
@@ -86,7 +85,7 @@ export default function CampfireStage(props: {
 
   useEffect(() => {
     if (!audioUrl) return;
-    const shouldAutoplay = !episode?.id || phase === "LISTEN" || phase === "SUBMIT";
+    const shouldAutoplay = isIntroFallback || phase === "LISTEN" || phase === "SUBMIT";
     if (!shouldAutoplay) return;
     const el = audioRef.current;
     if (!el) return;
@@ -96,7 +95,7 @@ export default function CampfireStage(props: {
     void el.play().catch(() => {
       // Autoplay may be blocked; controls remain available.
     });
-  }, [audioUrl, episode?.id, phase]);
+  }, [audioUrl, isIntroFallback, phase]);
 
   useEffect(() => {
     if (phase !== "SUBMIT") return;
