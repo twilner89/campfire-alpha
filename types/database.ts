@@ -6,6 +6,7 @@ export type Profile = {
   id: string;
   username: string | null;
   is_admin: boolean;
+  has_access?: boolean;
 };
 
 export type Episode = {
