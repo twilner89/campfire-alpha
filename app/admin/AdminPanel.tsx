@@ -84,7 +84,7 @@ export default function AdminPanel() {
           .select("id,title,narrative_text,audio_url,season_num,episode_num")
           .order("season_num", { ascending: true })
           .order("episode_num", { ascending: true });
-        episodesData = fallback.data;
+        episodesData = fallback.data ? fallback.data.map((e) => ({ ...e, credited_authors: null })) : null;
         episodesError = fallback.error;
       }
     }

@@ -32,10 +32,12 @@ type ActiveSeriesBible = {
   genre: string;
   tone: string;
   premise: string;
-  bible_json: unknown;
-  intro_audio_url?: string | null;
+  bible_json: DramaticaStructure;
+  intro_audio_url: string | null | undefined;
   created_at: string;
 };
+
+type ActiveSeriesBibleFallbackRow = Omit<ActiveSeriesBible, "intro_audio_url">;
 
 type BuildContinuityHeaderInput = {
   episodeId: string;
@@ -368,15 +370,16 @@ export async function getActiveSeriesBible(accessToken: string): Promise<ActiveS
       const msg = error.message.toLowerCase();
       const missingIntroColumn = msg.includes("intro_audio_url");
       if (missingIntroColumn) {
-        ({ data, error } = await adminClient
+        const fallback = await adminClient
           .from("series_bible")
           .select("id,title,genre,tone,premise,bible_json,created_at")
           .eq("id", seriesBibleId)
-          .maybeSingle());
+          .maybeSingle();
 
-        if (!error && data) {
-          data = ({ ...(data as Record<string, unknown>), intro_audio_url: null } as unknown) as typeof data;
-        }
+        data = fallback.data
+          ? ({ ...(fallback.data as unknown as ActiveSeriesBibleFallbackRow), intro_audio_url: null } as ActiveSeriesBible)
+          : null;
+        error = fallback.error;
       }
     }
 
@@ -384,25 +387,34 @@ export async function getActiveSeriesBible(accessToken: string): Promise<ActiveS
     return (data as ActiveSeriesBible | null) ?? null;
   }
 
-  let { data: latest, error: latestError } = await adminClient
-    .from("series_bible")
-    .select("id,title,genre,tone,premise,bible_json,intro_audio_url,created_at")
-    .order("created_at", { ascending: false })
-    .limit(1);
+  let latest: ActiveSeriesBible[] | null = null;
+  let latestError: { message: string } | null = null;
+
+  {
+    const attempt = await adminClient
+      .from("series_bible")
+      .select("id,title,genre,tone,premise,bible_json,intro_audio_url,created_at")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    latest = (attempt.data as ActiveSeriesBible[] | null) ?? null;
+    latestError = attempt.error;
+  }
 
   if (latestError) {
     const msg = latestError.message.toLowerCase();
     const missingIntroColumn = msg.includes("intro_audio_url");
     if (missingIntroColumn) {
-      ({ data: latest, error: latestError } = await adminClient
+      const fallback = await adminClient
         .from("series_bible")
         .select("id,title,genre,tone,premise,bible_json,created_at")
         .order("created_at", { ascending: false })
-        .limit(1));
+        .limit(1);
 
-      if (!latestError && Array.isArray(latest)) {
-        latest = (latest as unknown as Record<string, unknown>[]).map((row) => ({ ...row, intro_audio_url: null })) as unknown as typeof latest;
-      }
+      latest =
+        fallback.data && Array.isArray(fallback.data)
+          ? (fallback.data as unknown as ActiveSeriesBibleFallbackRow[]).map((row) => ({ ...row, intro_audio_url: null } as ActiveSeriesBible))
+          : null;
+      latestError = fallback.error;
     }
   }
 

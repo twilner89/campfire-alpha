@@ -116,7 +116,7 @@ export default async function GamePage() {
           .select("id,title,narrative_text,audio_url,season_num,episode_num")
           .eq("id", currentEpisodeId)
           .maybeSingle();
-        episode = fallback.data;
+        episode = fallback.data ? { ...fallback.data, credited_authors: null } : null;
         episodeError = fallback.error;
       }
     }

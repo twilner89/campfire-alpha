@@ -88,6 +88,8 @@ export default function CampfireStageShell(props: {
             .select("id,title,narrative_text,audio_url,season_num,episode_num")
             .eq("id", id)
             .maybeSingle());
+
+          data = data ? { ...data, credited_authors: null } : null;
         }
       }
 
