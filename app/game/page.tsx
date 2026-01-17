@@ -90,6 +90,7 @@ export default async function GamePage() {
       ? {
           current_phase: singletonState.current_phase as GamePhase,
           current_episode_id: singletonState.current_episode_id,
+          current_series_bible_id: (singletonState as { current_series_bible_id?: string | null }).current_series_bible_id ?? null,
           phase_expiry: (singletonState as { phase_expiry?: string | null }).phase_expiry ?? null,
         }
       : null;
