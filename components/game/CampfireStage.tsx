@@ -98,7 +98,7 @@ export default function CampfireStage(props: {
   }, [audioUrl, isIntroFallback, phase]);
 
   useEffect(() => {
-    if (phase !== "SUBMIT") return;
+    if (phase !== "LISTEN" && phase !== "SUBMIT") return;
     if (!audioUrl) return;
     if (listenedUnlocked) return;
     const el = audioRef.current;
@@ -203,6 +203,14 @@ export default function CampfireStage(props: {
   }
 
   async function handleSubmit() {
+    if (phase !== "SUBMIT") {
+      setSubmitMessage("Submissions open when the phase switches to SUBMIT.");
+      return;
+    }
+    if (!listenedUnlocked) {
+      setSubmitMessage("Listen to at least 80% to unlock submissions.");
+      return;
+    }
     if (!supabase) {
       setSubmitMessage("Supabase client not configured.");
       return;
@@ -328,7 +336,7 @@ export default function CampfireStage(props: {
           </div>
         </div>
 
-        {phase === "SUBMIT" ? (
+        {phase === "LISTEN" || phase === "SUBMIT" ? (
           <div className="absolute inset-x-0 bottom-0 z-40 px-4 pb-24">
             <div className="campfire-slide-up pixel-frame rounded-lg bg-stone-950/80 p-3">
               {listenedUnlocked ? (
@@ -346,7 +354,7 @@ export default function CampfireStage(props: {
                     <button
                       type="button"
                       onClick={() => void handleSubmit()}
-                      disabled={submitLoading}
+                      disabled={submitLoading || phase !== "SUBMIT"}
                       className="pixel-frame pixel-inset rounded-md bg-stone-900/70 px-3 py-2 font-press-start text-[10px] text-stone-100/90 hover:bg-stone-900/80 disabled:opacity-60"
                     >
                       {submitLoading ? "Submitting..." : "Submit"}
@@ -360,6 +368,14 @@ export default function CampfireStage(props: {
                   <div className="font-vt323 mt-2 text-lg leading-5 text-stone-100/80">
                     Submissions unlock after you’ve listened to at least 80% of the episode.
                   </div>
+                  <textarea
+                    value={submissionText}
+                    onChange={(e) => setSubmissionText(e.target.value)}
+                    disabled={submitLoading}
+                    rows={3}
+                    className="mt-2 w-full resize-none rounded-md bg-black/40 p-2 font-vt323 text-lg leading-5 text-stone-100 outline-none"
+                    placeholder="Draft your idea while you listen..."
+                  />
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <button
                       type="button"
