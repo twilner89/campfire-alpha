@@ -255,7 +255,7 @@ export default function CampfireStage(props: {
   const showRunes = phase === "PROCESS";
 
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-4xl overflow-hidden border-4 border-[#2d1b14] bg-black">
+    <div className="relative mx-auto aspect-video w-full max-w-6xl overflow-hidden border-4 border-[#2d1b14] bg-black">
         <div
           className={`absolute inset-0 z-0 transition-[filter,opacity] duration-500 ${
             skyDark ? "brightness-75 saturate-75" : "brightness-100"
@@ -301,44 +301,49 @@ export default function CampfireStage(props: {
         </div>
 
         <div className="absolute inset-x-0 top-0 z-30 p-4">
-          <div className="pixel-inset flex items-center justify-between rounded-lg bg-stone-950/55 px-3 py-2">
-            <div className="font-press-start text-[10px] tracking-wide text-stone-100/90">Campfire Console</div>
-            <div className="flex items-center gap-3">
-              <div className="font-press-start text-[10px] text-stone-200/70">Next</div>
-              <PhaseTimer phase={phase} expiry={gameState.phase_expiry ?? null} />
-              <div className="font-press-start text-[10px] text-stone-200/70">{phase ?? "(loading)"}</div>
+          <div className="mx-auto w-full max-w-2xl">
+            <div className="pixel-inset flex items-center justify-between rounded-lg bg-stone-950/55 px-3 py-2">
+              <div className="font-press-start text-[10px] tracking-wide text-stone-100/90">Campfire Console</div>
+              <div className="flex items-center gap-3">
+                <div className="font-press-start text-[10px] text-stone-200/70">Next</div>
+                <PhaseTimer phase={phase} expiry={gameState.phase_expiry ?? null} />
+                <div className="font-press-start text-[10px] text-stone-200/70">{phase ?? "(loading)"}</div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="absolute inset-x-0 bottom-0 z-30 px-4 pb-4">
-          <div className="pixel-frame rounded-lg bg-stone-950/70 p-3">
-            <div className="font-press-start mb-2 text-[10px] text-stone-200/80">{episode ? episode.title : "No active episode"}</div>
+          <div className="mx-auto w-full max-w-2xl">
+            <div className="pixel-frame rounded-lg bg-stone-950/70 p-3">
+              <div className="font-press-start mb-2 text-[10px] text-stone-200/80">{episode ? episode.title : "No active episode"}</div>
 
-            {phase === "LISTEN" && episode?.credited_authors && episode.credited_authors.length > 0 ? (
-              <div className="font-press-start mb-2 text-[9px] text-stone-200/70">
-                Constructed from the minds of: {episode.credited_authors.map((a) => a.name).join(", ")}
+              {phase === "LISTEN" && episode?.credited_authors && episode.credited_authors.length > 0 ? (
+                <div className="font-press-start mb-2 text-[9px] text-stone-200/70">
+                  Constructed from the minds of: {episode.credited_authors.map((a) => a.name).join(", ")}
+                </div>
+              ) : null}
+
+              {(audioUrl && (!episode?.id || phase === "LISTEN" || phase === "SUBMIT")) ? (
+                <audio ref={audioRef} className="mb-2 w-full" controls preload="auto" src={audioUrl} />
+              ) : null}
+
+              <div
+                ref={narrativeRef}
+                className={`font-vt323 max-h-28 overflow-y-auto whitespace-pre-wrap text-lg leading-5 text-stone-50/90 transition-opacity duration-300 ${
+                  phase === "VOTE" ? "opacity-0" : "opacity-100"
+                }`}
+              >
+                {typedNarrative || (phase === "PROCESS" ? "The runes churn..." : "")}
               </div>
-            ) : null}
-
-            {(audioUrl && (!episode?.id || phase === "LISTEN" || phase === "SUBMIT")) ? (
-              <audio ref={audioRef} className="mb-2 w-full" controls preload="auto" src={audioUrl} />
-            ) : null}
-
-            <div
-              ref={narrativeRef}
-              className={`font-vt323 max-h-28 overflow-y-auto whitespace-pre-wrap text-lg leading-5 text-stone-50/90 transition-opacity duration-300 ${
-                phase === "VOTE" ? "opacity-0" : "opacity-100"
-              }`}
-            >
-              {typedNarrative || (phase === "PROCESS" ? "The runes churn..." : "")}
             </div>
           </div>
         </div>
 
         {phase === "LISTEN" || phase === "SUBMIT" ? (
           <div className="absolute inset-x-0 bottom-0 z-40 px-4 pb-24">
-            <div className="campfire-slide-up pixel-frame rounded-lg bg-stone-950/80 p-3">
+            <div className="mx-auto w-full max-w-2xl">
+              <div className="campfire-slide-up pixel-frame rounded-lg bg-stone-950/80 p-3">
               {listenedUnlocked ? (
                 <>
                   <div className="font-press-start text-[10px] text-stone-100/90">Submit your idea</div>
@@ -388,13 +393,15 @@ export default function CampfireStage(props: {
                   </div>
                 </>
               )}
+              </div>
             </div>
           </div>
         ) : null}
 
         {phase === "VOTE" ? (
           <div className="absolute inset-x-0 bottom-0 z-40 px-4 pb-24">
-            <div className="campfire-slide-up grid gap-2">
+            <div className="mx-auto w-full max-w-2xl">
+              <div className="campfire-slide-up grid gap-2">
               {loadingOptions ? (
                 <div className="pixel-frame font-vt323 rounded-lg bg-stone-950/80 p-3 text-lg text-stone-200/80">Loading choices...</div>
               ) : options.length === 0 ? (
@@ -417,6 +424,7 @@ export default function CampfireStage(props: {
               {voteMessage ? (
                 <div className="font-vt323 text-center text-lg text-stone-100/80">{voteMessage}</div>
               ) : null}
+              </div>
             </div>
           </div>
         ) : null}
