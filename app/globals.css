@@ -184,6 +184,13 @@
     animation: campfire-slide-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
+  .campfire-echo-float {
+    animation-name: campfire-echo-float;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+  }
+
   .pixelated {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
@@ -233,6 +240,23 @@
   100% {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes campfire-echo-float {
+  0% {
+    transform: translateY(0px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  85% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateY(-120%);
+    opacity: 0;
   }
 }
 

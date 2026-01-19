@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import CampfireOwl from "@/components/game/CampfireOwl";
+import CampfireConsole from "@/components/game/CampfireConsole";
+import CampfireEchoes from "@/components/game/CampfireEchoes";
 import { useTypewriter } from "@/components/game/useTypewriter";
-import PhaseTimer from "@/components/game/PhaseTimer";
+import { getFireHealth } from "@/app/game/actions";
 import type { Episode, GamePhase } from "@/types/database";
 
 type OptionRow = {
@@ -43,6 +45,8 @@ export default function CampfireStage(props: {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [needsManualPlay, setNeedsManualPlay] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [fireHealth, setFireHealth] = useState(0);
+  const [echoRefreshKey, setEchoRefreshKey] = useState(0);
   const isIntroFallback = !(episode?.audio_url ?? "").trim() && !!(introAudioUrl ?? "").trim();
   const audioUrl = ((episode?.audio_url ?? "").trim() || (introAudioUrl ?? "").trim()).trim();
 
@@ -62,6 +66,39 @@ export default function CampfireStage(props: {
   useEffect(() => {
     setIsAudioPlaying(false);
   }, [audioUrl]);
+
+  useEffect(() => {
+    const episodeId = episode?.id ?? null;
+    if (!episodeId) {
+      setFireHealth(0);
+      return;
+    }
+    if (phase !== "SUBMIT") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const tick = async () => {
+      try {
+        const res = await getFireHealth(episodeId);
+        if (cancelled) return;
+        setFireHealth(res.percent);
+      } catch {
+        // ignore
+      }
+    };
+
+    void tick();
+    const id = window.setInterval(() => {
+      void tick();
+    }, 10_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [episode?.id, phase]);
 
   const listenedKey = useMemo(() => {
     if (!episode?.id) return null;
@@ -272,6 +309,13 @@ export default function CampfireStage(props: {
 
       setSubmissionText("");
       setSubmitMessage("Submitted!");
+      setEchoRefreshKey((k) => k + 1);
+      try {
+        const res = await getFireHealth(episode.id);
+        setFireHealth(res.percent);
+      } catch {
+        // ignore
+      }
     } catch (e) {
       setSubmitMessage(e instanceof Error ? e.message : "Failed to submit.");
     } finally {
@@ -294,6 +338,8 @@ export default function CampfireStage(props: {
           src="/assets/pixels/campfire-loop.mp4"
         />
 
+        {phase === "SUBMIT" && episode?.id ? <CampfireEchoes episodeId={episode.id} refreshKey={echoRefreshKey} /> : null}
+
         <div className="pointer-events-none absolute left-[33%] bottom-[22%] w-[10%] z-10 brightness-75 contrast-110 grayscale-[0.2]">
           <CampfireOwl isTalking={isAudioPlaying} />
         </div>
@@ -313,18 +359,8 @@ export default function CampfireStage(props: {
         {showRunes ? <div className="pointer-events-none absolute inset-0 z-30 campfire-runes opacity-80" /> : null}
       </div>
 
-      <div className="relative z-50 flex h-[250px] w-full flex-col border-t-4 border-slate-600 bg-slate-900">
-        <div className="flex items-center justify-between border-b-2 border-slate-700 px-4 py-2">
-          <div className="font-press-start text-[10px] tracking-wide text-slate-100/90">Campfire Console</div>
-          <div className="flex items-center gap-3">
-            <div className="font-press-start text-[10px] text-slate-200/70">Next</div>
-            <PhaseTimer phase={phase} expiry={gameState.phase_expiry ?? null} />
-            <div className="font-press-start text-[10px] text-slate-200/70">{phase ?? "(loading)"}</div>
-          </div>
-        </div>
-
-        <div className="flex flex-1 gap-4 overflow-hidden p-4">
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <CampfireConsole fireHealth={fireHealth} phase={phase} expiry={gameState.phase_expiry ?? null}>
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <div className="font-press-start text-[10px] text-slate-200/80">{episode ? episode.title : "No active episode"}</div>
 
             {phase === "LISTEN" && episode?.credited_authors && episode.credited_authors.length > 0 ? (
@@ -355,9 +391,9 @@ export default function CampfireStage(props: {
                 onEnded={() => setIsAudioPlaying(false)}
               />
             ) : null}
-          </div>
+        </div>
 
-          <div className="w-[360px] max-w-[45%] shrink-0">
+        <div className="w-[360px] max-w-[45%] shrink-0">
             {phase === "VOTE" ? (
               <div className="h-full overflow-y-auto">
                 <div className="grid gap-2">
@@ -440,9 +476,8 @@ export default function CampfireStage(props: {
                 <div className="font-vt323 text-lg text-white/80">Waiting for the next phase...</div>
               </div>
             )}
-          </div>
         </div>
-      </div>
+      </CampfireConsole>
     </div>
   );
 }

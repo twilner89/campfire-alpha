@@ -64,6 +64,164 @@ async function fetchGameState(adminClient: ReturnType<typeof createServerSupabas
   return (row as { current_phase: Database["public"]["Enums"]["game_phase"]; current_episode_id: string | null; phase_expiry?: string | null } | null) ?? null;
 }
 
+export type EchoRow = {
+  id: string;
+  content_text: string;
+  heat: number;
+  created_at: string | null;
+  user_id?: string;
+};
+
+export async function stokeSubmission(accessToken: string, submissionId: string) {
+  await requireUser(accessToken);
+
+  const id = (submissionId ?? "").trim();
+  if (!id) throw new Error("Missing submission id.");
+
+  const adminClient = createServerSupabaseClient({ admin: true });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data: row, error: readError } = await adminClient
+      .from("submissions")
+      .select("id,heat")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (readError) {
+      const msg = readError.message.toLowerCase();
+      const missingHeatColumn = msg.includes("heat") && (msg.includes("column") || msg.includes("schema cache"));
+      if (missingHeatColumn) {
+        throw new Error("Database missing submissions.heat column. Apply the migration and try again.");
+      }
+      throw new Error(readError.message);
+    }
+
+    if (!row) {
+      throw new Error("Submission not found.");
+    }
+
+    const anyRow = row as { id: string; heat?: number | null };
+    const currentHeat = anyRow.heat ?? 0;
+    const nextHeat = currentHeat + 1;
+
+    let update = adminClient.from("submissions").update({ heat: nextHeat }).eq("id", id);
+    if (anyRow.heat === null || anyRow.heat === undefined) {
+      update = update.is("heat", null);
+    } else {
+      update = update.eq("heat", currentHeat);
+    }
+
+    const updateAttempt = await update.select("heat").maybeSingle();
+    if (updateAttempt.error) {
+      const msg = updateAttempt.error.message.toLowerCase();
+      const missingHeatColumn = msg.includes("heat") && (msg.includes("column") || msg.includes("schema cache"));
+      if (missingHeatColumn) {
+        throw new Error("Database missing submissions.heat column. Apply the migration and try again.");
+      }
+      throw new Error(updateAttempt.error.message);
+    }
+
+    if (updateAttempt.data) {
+      const updated = updateAttempt.data as { heat?: number | null };
+      return { ok: true as const, heat: updated.heat ?? nextHeat };
+    }
+  }
+
+  throw new Error("Failed to stoke submission. Please retry.");
+}
+
+export async function getRecentEchoes(episodeId: string): Promise<EchoRow[]> {
+  const id = (episodeId ?? "").trim();
+  if (!id) return [];
+
+  const adminClient = createServerSupabaseClient({ admin: true });
+
+  const selectBase = "id,content_text,created_at,heat";
+  let attempt = await adminClient
+    .from("submissions")
+    .select(selectBase)
+    .eq("episode_id", id)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (attempt.error) {
+    const msg = attempt.error.message.toLowerCase();
+    const missingCreatedAt = msg.includes("created_at") && (msg.includes("column") || msg.includes("schema cache"));
+    if (missingCreatedAt) {
+      attempt = await adminClient
+        .from("submissions")
+        .select(selectBase)
+        .eq("episode_id", id)
+        .order("id", { ascending: false })
+        .limit(30);
+    }
+  }
+
+  if (attempt.error) {
+    const msg = attempt.error.message.toLowerCase();
+    const missingHeatColumn = msg.includes("heat") && (msg.includes("column") || msg.includes("schema cache"));
+    if (missingHeatColumn) {
+      const fallback = await adminClient
+        .from("submissions")
+        .select("id,content_text,created_at")
+        .eq("episode_id", id)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (fallback.error) throw new Error(fallback.error.message);
+
+      return ((fallback.data ?? []) as { id: string; content_text: string; created_at?: string | null }[]).map((r) => ({
+        id: r.id,
+        content_text: r.content_text,
+        heat: 0,
+        created_at: r.created_at ?? null,
+      }));
+    }
+
+    throw new Error(attempt.error.message);
+  }
+
+  return ((attempt.data ?? []) as { id: string; content_text: string; created_at?: string | null; heat?: number | null }[]).map((r) => ({
+    id: r.id,
+    content_text: r.content_text,
+    heat: r.heat ?? 0,
+    created_at: r.created_at ?? null,
+  }));
+}
+
+export async function getFireHealth(episodeId: string): Promise<{ ok: true; percent: number; points: number; target: number }> {
+  const id = (episodeId ?? "").trim();
+  if (!id) return { ok: true as const, percent: 0, points: 0, target: 200 };
+
+  const adminClient = createServerSupabaseClient({ admin: true });
+
+  const countAttempt = await adminClient.from("submissions").select("id", { count: "exact", head: true }).eq("episode_id", id);
+  if (countAttempt.error) throw new Error(countAttempt.error.message);
+  const totalSubmissions = countAttempt.count ?? 0;
+
+  let totalHeat = 0;
+  const sumAttempt = await adminClient
+    .from("submissions")
+    .select("heat.sum()")
+    .eq("episode_id", id)
+    .maybeSingle();
+
+  if (sumAttempt.error) {
+    const msg = sumAttempt.error.message.toLowerCase();
+    const missingHeatColumn = msg.includes("heat") && (msg.includes("column") || msg.includes("schema cache"));
+    if (!missingHeatColumn) {
+      throw new Error(sumAttempt.error.message);
+    }
+  } else {
+    const row = (sumAttempt.data as { sum?: number | null } | null) ?? null;
+    totalHeat = Number.isFinite(row?.sum as number) ? Math.max(0, Math.floor(row?.sum as number)) : 0;
+  }
+
+  const points = totalSubmissions * 2 + totalHeat;
+  const target = 200;
+  const percent = Math.max(0, Math.min(100, Math.round((points / target) * 100)));
+  return { ok: true as const, percent, points, target };
+}
+
 export async function castVote(accessToken: string, optionId: string) {
   const { userId } = await requireUser(accessToken);
 

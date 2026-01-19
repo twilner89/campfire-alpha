@@ -25,6 +25,8 @@ export type Submission = {
   episode_id: string;
   content_text: string;
   is_synthetic: boolean;
+  heat?: number;
+  created_at?: string;
 };
 
 export type PathOption = {
