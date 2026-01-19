@@ -83,7 +83,7 @@ export default function CampfireStage(props: {
       try {
         const res = await getFireHealth(episodeId);
         if (cancelled) return;
-        setFireHealth(res.percent);
+        setFireHealth((prev) => Math.max(prev, res.percent));
       } catch {
         // ignore
       }
@@ -312,7 +312,7 @@ export default function CampfireStage(props: {
       setEchoRefreshKey((k) => k + 1);
       try {
         const res = await getFireHealth(episode.id);
-        setFireHealth(res.percent);
+        setFireHealth((prev) => Math.max(prev, res.percent));
       } catch {
         // ignore
       }
@@ -338,7 +338,15 @@ export default function CampfireStage(props: {
           src="/assets/pixels/campfire-loop.mp4"
         />
 
-        {phase === "SUBMIT" && episode?.id ? <CampfireEchoes episodeId={episode.id} refreshKey={echoRefreshKey} /> : null}
+        {phase === "SUBMIT" && episode?.id ? (
+          <CampfireEchoes
+            episodeId={episode.id}
+            refreshKey={echoRefreshKey}
+            onStoke={() => {
+              setFireHealth((prev) => Math.min(100, prev + 2));
+            }}
+          />
+        ) : null}
 
         <div className="pointer-events-none absolute left-[33%] bottom-[22%] w-[10%] z-10 brightness-75 contrast-110 grayscale-[0.2]">
           <CampfireOwl isTalking={isAudioPlaying} />
