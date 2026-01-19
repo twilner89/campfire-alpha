@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import CampfireOwl from "@/components/game/CampfireOwl";
 import { useTypewriter } from "@/components/game/useTypewriter";
 import PhaseTimer from "@/components/game/PhaseTimer";
 import type { Episode, GamePhase } from "@/types/database";
@@ -255,49 +255,20 @@ export default function CampfireStage(props: {
   const showRunes = phase === "PROCESS";
 
   return (
-    <div className="relative mx-auto aspect-video w-full max-w-6xl overflow-hidden border-4 border-[#2d1b14] bg-black">
-        <div
-          className={`absolute inset-0 z-0 transition-[filter,opacity] duration-500 ${
+    <div className="relative mx-auto aspect-video w-full max-w-6xl overflow-hidden rounded-lg border-4 border-[#2d1b14] bg-black">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className={`absolute inset-0 h-full w-full object-cover transition-[filter,opacity] duration-500 ${
             skyDark ? "brightness-75 saturate-75" : "brightness-100"
           }`}
-          style={{
-            background:
-              "radial-gradient(900px 520px at 50% 20%, rgba(24, 74, 160, 0.75) 0%, rgba(2, 4, 14, 0.95) 55%, #000 100%)",
-          }}
+          src="/assets/pixels/campfire-loop.mp4"
         />
-        <div className="absolute inset-0 z-0 campfire-stars opacity-70" />
 
-        <div className="absolute inset-0 z-10">
-          <Image
-            src="/assets/pixels/layer_1_arch.png.png"
-            alt="Arch"
-            fill
-            priority
-            sizes="(max-width: 768px) 100vw, 768px"
-            className="pixelated h-full w-full object-cover object-bottom"
-          />
-        </div>
-
-        <div className="absolute inset-0 z-20">
-          <Image
-            src="/assets/pixels/layer_2_wizard.png.png"
-            alt="Wizard"
-            fill
-            priority
-            sizes="(max-width: 768px) 100vw, 768px"
-            className="pixelated h-full w-full object-cover object-bottom"
-          />
-        </div>
-
-        <div className="absolute inset-0 z-30" style={{ filter: "drop-shadow(0 0 18px rgba(255,140,80,0.45))" }}>
-          <Image
-            src="/assets/pixels/layer_3_fire.png.png"
-            alt="Fire"
-            fill
-            priority
-            sizes="(max-width: 768px) 100vw, 768px"
-            className="pixelated h-full w-full object-cover object-bottom"
-          />
+        <div className="pointer-events-none absolute bottom-4 right-1/4 z-20">
+          <CampfireOwl isTalking={true} />
         </div>
 
         <div className="absolute inset-x-0 top-0 z-30 p-4">
