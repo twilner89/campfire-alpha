@@ -42,6 +42,7 @@ export default function CampfireStage(props: {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [needsManualPlay, setNeedsManualPlay] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const isIntroFallback = !(episode?.audio_url ?? "").trim() && !!(introAudioUrl ?? "").trim();
   const audioUrl = ((episode?.audio_url ?? "").trim() || (introAudioUrl ?? "").trim()).trim();
 
@@ -57,6 +58,10 @@ export default function CampfireStage(props: {
       },
     );
   }, []);
+
+  useEffect(() => {
+    setIsAudioPlaying(false);
+  }, [audioUrl]);
 
   const listenedKey = useMemo(() => {
     if (!episode?.id) return null;
@@ -289,8 +294,8 @@ export default function CampfireStage(props: {
           src="/assets/pixels/campfire-loop.mp4"
         />
 
-        <div className="pointer-events-none absolute left-[35%] bottom-[5%] w-[10%] z-10 brightness-75 contrast-110 grayscale-[0.2]">
-          <CampfireOwl isTalking={false} />
+        <div className="pointer-events-none absolute left-[33%] bottom-[22%] w-[10%] z-10 brightness-75 contrast-110 grayscale-[0.2]">
+          <CampfireOwl isTalking={isAudioPlaying} />
         </div>
 
         {needsManualPlay ? (
@@ -332,7 +337,7 @@ export default function CampfireStage(props: {
               ref={narrativeRef}
               className={`mt-2 flex-1 overflow-y-auto whitespace-pre-wrap font-vt323 text-lg leading-5 text-slate-50/90 transition-opacity duration-300 ${
                 phase === "VOTE" ? "opacity-0" : "opacity-100"
-              }`}
+              } max-w-[65ch] mx-auto`}
             >
               {typedNarrative || (phase === "PROCESS" ? "The runes churn..." : "")}
             </div>
@@ -345,6 +350,9 @@ export default function CampfireStage(props: {
                 controls
                 preload="auto"
                 src={audioUrl}
+                onPlay={() => setIsAudioPlaying(true)}
+                onPause={() => setIsAudioPlaying(false)}
+                onEnded={() => setIsAudioPlaying(false)}
               />
             ) : null}
           </div>
@@ -385,7 +393,7 @@ export default function CampfireStage(props: {
                       onChange={(e) => setSubmissionText(e.target.value)}
                       disabled={submitLoading}
                       rows={4}
-                      className="mt-2 w-full resize-none border-2 border-white bg-black p-2 font-vt323 text-lg leading-5 text-white outline-none"
+                      className="mt-2 w-full resize-none border-2 border-slate-500 bg-black p-2 font-vt323 text-lg leading-5 text-white outline-none"
                       placeholder="What should happen next?"
                     />
                     <div className="mt-2 flex items-center justify-between gap-3">
@@ -411,7 +419,7 @@ export default function CampfireStage(props: {
                       onChange={(e) => setSubmissionText(e.target.value)}
                       disabled={submitLoading}
                       rows={4}
-                      className="mt-2 w-full resize-none border-2 border-white bg-black p-2 font-vt323 text-lg leading-5 text-white outline-none"
+                      className="mt-2 w-full resize-none border-2 border-slate-500 bg-black p-2 font-vt323 text-lg leading-5 text-white outline-none"
                       placeholder="Draft your idea while you listen..."
                     />
                     <div className="mt-2 flex items-center justify-between gap-3">
