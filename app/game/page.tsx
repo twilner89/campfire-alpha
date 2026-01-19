@@ -1,7 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
-
 import CampfireStageShell from "./CampfireStageShell";
 import AlphaGate from "@/components/auth/AlphaGate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -159,33 +157,23 @@ export default async function GamePage() {
 
   return (
     <AlphaGate hasAccess={false}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-16">
-        <div className="flex items-center justify-between">
-          <h1 className="font-press-start text-lg">Campfire</h1>
-          <div className="flex items-center gap-4">
-            <Link className="text-sm text-muted-foreground hover:text-foreground" href="/auth">
-              Sign in
-            </Link>
-            <Link className="text-sm text-muted-foreground hover:text-foreground" href="/">
-              Home
-            </Link>
-          </div>
-        </div>
-
+      <div className="relative h-screen w-full bg-black">
         {gameStateErrorMessage ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Current phase</CardTitle>
-              <CardDescription>{`Error loading game state: ${gameStateErrorMessage}`}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {hasMultipleGameStateRows ? (
-                <p className="text-sm text-muted-foreground">
-                  Warning: multiple rows exist in `game_state`. The app will use the first row until you clean this up.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+          <div className="flex h-full w-full items-center justify-center p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Current phase</CardTitle>
+                <CardDescription>{`Error loading game state: ${gameStateErrorMessage}`}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {hasMultipleGameStateRows ? (
+                  <p className="text-sm text-muted-foreground">
+                    Warning: multiple rows exist in `game_state`. The app will use the first row until you clean this up.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <CampfireStageShell
             episode={typedEpisode}
@@ -198,7 +186,11 @@ export default async function GamePage() {
           />
         )}
 
-        {episodeError ? <p className="text-sm text-muted-foreground">{episodeError.message}</p> : null}
+        {episodeError ? (
+          <div className="pointer-events-none absolute bottom-2 left-2 z-50 text-sm text-muted-foreground">
+            {episodeError.message}
+          </div>
+        ) : null}
       </div>
     </AlphaGate>
   );

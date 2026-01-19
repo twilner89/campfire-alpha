@@ -41,8 +41,22 @@ export default function CampfireStage(props: {
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [needsManualPlay, setNeedsManualPlay] = useState(false);
   const isIntroFallback = !(episode?.audio_url ?? "").trim() && !!(introAudioUrl ?? "").trim();
   const audioUrl = ((episode?.audio_url ?? "").trim() || (introAudioUrl ?? "").trim()).trim();
+
+  const handleManualPlay = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    void el.play().then(
+      () => {
+        setNeedsManualPlay(false);
+      },
+      () => {
+        setNeedsManualPlay(true);
+      },
+    );
+  }, []);
 
   const listenedKey = useMemo(() => {
     if (!episode?.id) return null;
@@ -86,15 +100,24 @@ export default function CampfireStage(props: {
   useEffect(() => {
     if (!audioUrl) return;
     const shouldAutoplay = isIntroFallback || phase === "LISTEN" || phase === "SUBMIT";
-    if (!shouldAutoplay) return;
+    if (!shouldAutoplay) {
+      setNeedsManualPlay(false);
+      return;
+    }
     const el = audioRef.current;
     if (!el) return;
 
     el.currentTime = 0;
     el.load();
-    void el.play().catch(() => {
-      // Autoplay may be blocked; controls remain available.
-    });
+    void el.play().then(
+      () => {
+        setNeedsManualPlay(false);
+      },
+      () => {
+        setNeedsManualPlay(true);
+        // Autoplay may be blocked; controls remain available.
+      },
+    );
   }, [audioUrl, isIntroFallback, phase]);
 
   useEffect(() => {
@@ -255,152 +278,163 @@ export default function CampfireStage(props: {
   const showRunes = phase === "PROCESS";
 
   return (
-    <div className="relative mx-auto aspect-video w-full max-w-6xl overflow-hidden rounded-lg border-4 border-[#2d1b14] bg-black">
+    <div className="flex h-full w-full flex-col bg-black">
+      <div className="relative flex-1 overflow-hidden">
         <video
           autoPlay
           loop
           muted
           playsInline
-          className={`absolute inset-0 h-full w-full object-cover transition-[filter,opacity] duration-500 ${
-            skyDark ? "brightness-75 saturate-75" : "brightness-100"
-          }`}
+          className="absolute inset-0 h-full w-full object-cover"
           src="/assets/pixels/campfire-loop.mp4"
         />
 
-        <div className="pointer-events-none absolute left-[35%] bottom-[28%] w-[10%] z-10 brightness-75 contrast-110 grayscale-[0.2]">
+        <div className="pointer-events-none absolute left-[35%] bottom-[5%] w-[10%] z-10 brightness-75 contrast-110 grayscale-[0.2]">
           <CampfireOwl isTalking={false} />
         </div>
 
-        <div className="absolute inset-x-0 top-0 z-30 p-4">
-          <div className="mx-auto w-full max-w-2xl">
-            <div className="pixel-inset flex items-center justify-between rounded-lg bg-stone-950/55 px-3 py-2">
-              <div className="font-press-start text-[10px] tracking-wide text-stone-100/90">Campfire Console</div>
-              <div className="flex items-center gap-3">
-                <div className="font-press-start text-[10px] text-stone-200/70">Next</div>
-                <PhaseTimer phase={phase} expiry={gameState.phase_expiry ?? null} />
-                <div className="font-press-start text-[10px] text-stone-200/70">{phase ?? "(loading)"}</div>
-              </div>
-            </div>
+        {needsManualPlay ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={handleManualPlay}
+              className="border-4 border-white bg-black px-6 py-2 font-press-start text-[12px] text-white hover:bg-white hover:text-black"
+            >
+              Play
+            </button>
+          </div>
+        ) : null}
+
+        {showRunes ? <div className="pointer-events-none absolute inset-0 z-30 campfire-runes opacity-80" /> : null}
+      </div>
+
+      <div className="relative z-50 flex h-[250px] w-full flex-col border-t-4 border-slate-600 bg-slate-900">
+        <div className="flex items-center justify-between border-b-2 border-slate-700 px-4 py-2">
+          <div className="font-press-start text-[10px] tracking-wide text-slate-100/90">Campfire Console</div>
+          <div className="flex items-center gap-3">
+            <div className="font-press-start text-[10px] text-slate-200/70">Next</div>
+            <PhaseTimer phase={phase} expiry={gameState.phase_expiry ?? null} />
+            <div className="font-press-start text-[10px] text-slate-200/70">{phase ?? "(loading)"}</div>
           </div>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 z-30 px-4 pb-4">
-          <div className="mx-auto w-full max-w-2xl">
-            <div className="pixel-frame rounded-lg bg-stone-950/70 p-3">
-              <div className="font-press-start mb-2 text-[10px] text-stone-200/80">{episode ? episode.title : "No active episode"}</div>
+        <div className="flex flex-1 gap-4 overflow-hidden p-4">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="font-press-start text-[10px] text-slate-200/80">{episode ? episode.title : "No active episode"}</div>
 
-              {phase === "LISTEN" && episode?.credited_authors && episode.credited_authors.length > 0 ? (
-                <div className="font-press-start mb-2 text-[9px] text-stone-200/70">
-                  Constructed from the minds of: {episode.credited_authors.map((a) => a.name).join(", ")}
+            {phase === "LISTEN" && episode?.credited_authors && episode.credited_authors.length > 0 ? (
+              <div className="mt-2 font-press-start text-[9px] text-slate-200/70">
+                Constructed from the minds of: {episode.credited_authors.map((a) => a.name).join(", ")}
+              </div>
+            ) : null}
+
+            <div
+              ref={narrativeRef}
+              className={`mt-2 flex-1 overflow-y-auto whitespace-pre-wrap font-vt323 text-lg leading-5 text-slate-50/90 transition-opacity duration-300 ${
+                phase === "VOTE" ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              {typedNarrative || (phase === "PROCESS" ? "The runes churn..." : "")}
+            </div>
+
+            {(audioUrl && (!episode?.id || phase === "LISTEN" || phase === "SUBMIT")) ? (
+              <audio
+                ref={audioRef}
+                className="mt-2 w-full"
+                style={{ filter: "invert(1) contrast(1.2)" }}
+                controls
+                preload="auto"
+                src={audioUrl}
+              />
+            ) : null}
+          </div>
+
+          <div className="w-[360px] max-w-[45%] shrink-0">
+            {phase === "VOTE" ? (
+              <div className="h-full overflow-y-auto">
+                <div className="grid gap-2">
+                  {loadingOptions ? (
+                    <div className="pixel-frame rounded-lg bg-black p-3 font-vt323 text-lg text-white/80">Loading choices...</div>
+                  ) : options.length === 0 ? (
+                    <div className="pixel-frame rounded-lg bg-black p-3 font-vt323 text-lg text-white/80">No choices yet.</div>
+                  ) : (
+                    options.map((o) => (
+                      <button
+                        key={o.id}
+                        className="pixel-frame pixel-inset group rounded-lg bg-black p-3 text-left transition-colors hover:bg-black/80"
+                        onClick={() => void handleVote(o.id)}
+                        disabled={voteLoading !== null}
+                        type="button"
+                      >
+                        <div className="font-press-start text-[10px] text-white/90 group-hover:text-white">{o.title}</div>
+                        <div className="mt-1 font-vt323 text-lg leading-5 text-white/80">{o.description}</div>
+                      </button>
+                    ))
+                  )}
+
+                  {voteMessage ? <div className="font-vt323 text-center text-lg text-white/80">{voteMessage}</div> : null}
                 </div>
-              ) : null}
-
-              {(audioUrl && (!episode?.id || phase === "LISTEN" || phase === "SUBMIT")) ? (
-                <audio ref={audioRef} className="mb-2 w-full" controls preload="auto" src={audioUrl} />
-              ) : null}
-
-              <div
-                ref={narrativeRef}
-                className={`font-vt323 max-h-28 overflow-y-auto whitespace-pre-wrap text-lg leading-5 text-stone-50/90 transition-opacity duration-300 ${
-                  phase === "VOTE" ? "opacity-0" : "opacity-100"
-                }`}
-              >
-                {typedNarrative || (phase === "PROCESS" ? "The runes churn..." : "")}
               </div>
-            </div>
+            ) : phase === "LISTEN" || phase === "SUBMIT" ? (
+              <div className="pixel-frame h-full rounded-lg bg-black p-3">
+                {listenedUnlocked ? (
+                  <>
+                    <div className="font-press-start text-[10px] text-white/90">Submit your idea</div>
+                    <textarea
+                      value={submissionText}
+                      onChange={(e) => setSubmissionText(e.target.value)}
+                      disabled={submitLoading}
+                      rows={4}
+                      className="mt-2 w-full resize-none border-2 border-white bg-black p-2 font-vt323 text-lg leading-5 text-white outline-none"
+                      placeholder="What should happen next?"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleSubmit()}
+                        disabled={submitLoading || phase !== "SUBMIT"}
+                        className="border-2 border-white bg-black px-3 py-2 font-press-start text-[10px] text-white hover:bg-white hover:text-black disabled:opacity-60"
+                      >
+                        {submitLoading ? "Submitting..." : "Submit"}
+                      </button>
+                      <div className="font-vt323 text-lg text-white/80">{submitMessage ?? ""}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-press-start text-[10px] text-white/90">Listen to unlock submissions</div>
+                    <div className="mt-2 font-vt323 text-lg leading-5 text-white/80">
+                      Submissions unlock after you’ve listened to at least 80% of the episode.
+                    </div>
+                    <textarea
+                      value={submissionText}
+                      onChange={(e) => setSubmissionText(e.target.value)}
+                      disabled={submitLoading}
+                      rows={4}
+                      className="mt-2 w-full resize-none border-2 border-white bg-black p-2 font-vt323 text-lg leading-5 text-white outline-none"
+                      placeholder="Draft your idea while you listen..."
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => markListened()}
+                        className="border-2 border-white bg-black px-3 py-2 font-press-start text-[10px] text-white hover:bg-white hover:text-black"
+                      >
+                        I’ve listened
+                      </button>
+                      <div className="font-vt323 text-lg text-white/80">{submitMessage ?? ""}</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="pixel-frame h-full rounded-lg bg-black p-3">
+                <div className="font-vt323 text-lg text-white/80">Waiting for the next phase...</div>
+              </div>
+            )}
           </div>
         </div>
-
-        {phase === "LISTEN" || phase === "SUBMIT" ? (
-          <div className="absolute inset-x-0 bottom-0 z-40 px-4 pb-24">
-            <div className="mx-auto w-full max-w-2xl">
-              <div className="campfire-slide-up pixel-frame rounded-lg bg-stone-950/80 p-3">
-              {listenedUnlocked ? (
-                <>
-                  <div className="font-press-start text-[10px] text-stone-100/90">Submit your idea</div>
-                  <textarea
-                    value={submissionText}
-                    onChange={(e) => setSubmissionText(e.target.value)}
-                    disabled={submitLoading}
-                    rows={3}
-                    className="mt-2 w-full resize-none rounded-md bg-black/40 p-2 font-vt323 text-lg leading-5 text-stone-100 outline-none"
-                    placeholder="What should happen next?"
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleSubmit()}
-                      disabled={submitLoading || phase !== "SUBMIT"}
-                      className="pixel-frame pixel-inset rounded-md bg-stone-900/70 px-3 py-2 font-press-start text-[10px] text-stone-100/90 hover:bg-stone-900/80 disabled:opacity-60"
-                    >
-                      {submitLoading ? "Submitting..." : "Submit"}
-                    </button>
-                    <div className="font-vt323 text-lg text-stone-100/80">{submitMessage ?? ""}</div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="font-press-start text-[10px] text-stone-100/90">Listen to unlock submissions</div>
-                  <div className="font-vt323 mt-2 text-lg leading-5 text-stone-100/80">
-                    Submissions unlock after you’ve listened to at least 80% of the episode.
-                  </div>
-                  <textarea
-                    value={submissionText}
-                    onChange={(e) => setSubmissionText(e.target.value)}
-                    disabled={submitLoading}
-                    rows={3}
-                    className="mt-2 w-full resize-none rounded-md bg-black/40 p-2 font-vt323 text-lg leading-5 text-stone-100 outline-none"
-                    placeholder="Draft your idea while you listen..."
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => markListened()}
-                      className="pixel-frame pixel-inset rounded-md bg-stone-900/70 px-3 py-2 font-press-start text-[10px] text-stone-100/90 hover:bg-stone-900/80"
-                    >
-                      I’ve listened
-                    </button>
-                    <div className="font-vt323 text-lg text-stone-100/80">{submitMessage ?? ""}</div>
-                  </div>
-                </>
-              )}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {phase === "VOTE" ? (
-          <div className="absolute inset-x-0 bottom-0 z-40 px-4 pb-24">
-            <div className="mx-auto w-full max-w-2xl">
-              <div className="campfire-slide-up grid gap-2">
-              {loadingOptions ? (
-                <div className="pixel-frame font-vt323 rounded-lg bg-stone-950/80 p-3 text-lg text-stone-200/80">Loading choices...</div>
-              ) : options.length === 0 ? (
-                <div className="pixel-frame font-vt323 rounded-lg bg-stone-950/80 p-3 text-lg text-stone-200/80">No choices yet.</div>
-              ) : (
-                options.map((o) => (
-                  <button
-                    key={o.id}
-                    className="pixel-frame pixel-inset group rounded-lg bg-stone-950/75 p-3 text-left transition-colors hover:bg-stone-950/85"
-                    onClick={() => void handleVote(o.id)}
-                    disabled={voteLoading !== null}
-                    type="button"
-                  >
-                    <div className="font-press-start text-[10px] text-stone-100/90 group-hover:text-white">{o.title}</div>
-                    <div className="font-vt323 mt-1 text-lg leading-5 text-stone-200/90">{o.description}</div>
-                  </button>
-                ))
-              )}
-
-              {voteMessage ? (
-                <div className="font-vt323 text-center text-lg text-stone-100/80">{voteMessage}</div>
-              ) : null}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {showRunes ? <div className="pointer-events-none absolute inset-0 z-50 campfire-runes opacity-80" /> : null}
+      </div>
     </div>
   );
 }
