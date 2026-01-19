@@ -267,7 +267,7 @@ export default function CampfireStage(props: {
           src="/assets/pixels/campfire-loop.mp4"
         />
 
-        <div className="pointer-events-none absolute bottom-4 right-1/4 z-20">
+        <div className="pointer-events-none absolute bottom-[18%] left-[25%] z-10 w-24 brightness-75 contrast-125 sepia-[.3] hue-rotate-[180deg]">
           <CampfireOwl isTalking={true} />
         </div>
 

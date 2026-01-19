@@ -3,8 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
-export default function CampfireOwl(props: { isTalking: boolean }) {
-  const { isTalking } = props;
+export default function CampfireOwl(props: { isTalking: boolean; className?: string }) {
+  const { isTalking, className } = props;
 
   const idleSrc = "/assets/pixels/owl-idle.png.png";
   const talkSrc = "/assets/pixels/owl-talk.png.png";
@@ -61,14 +61,14 @@ export default function CampfireOwl(props: { isTalking: boolean }) {
   }, [blinkSrc, idleSrc, isTalking, talkSrc]);
 
   return (
-    <div className={`relative ${isTalking ? "campfire-breathe" : ""} h-28 w-28 md:h-36 md:w-36`}>
+    <div className={`relative aspect-square w-full ${isTalking ? "campfire-breathe" : ""} ${className ?? ""}`.trim()}>
       <Image
         src={currentSrc}
         alt="Owl"
         fill
         priority
         sizes="144px"
-        className="[image-rendering:pixelated]"
+        className="[image-rendering:pixelated] object-contain"
       />
     </div>
   );
