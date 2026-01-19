@@ -232,38 +232,13 @@ export async function GET(request: Request) {
       }
 
       if (gs.current_phase === "PROCESS") {
-        const episodeId = gs.current_episode_id;
-        if (episodeId) {
-          const { data: optionRows, error: optionError } = await adminClient
-            .from("path_options")
-            .select("id")
-            .eq("episode_id", episodeId);
-
-          if (optionError) throw new Error(optionError.message);
-
-          const optionIds = (optionRows ?? []).map((r) => (r as { id: string }).id).filter(Boolean);
-
-          if (optionIds.length > 0) {
-            const { error: voteDeleteError } = await adminClient.from("votes").delete().in("option_id", optionIds);
-            if (voteDeleteError) throw new Error(voteDeleteError.message);
-          }
-
-          const { error: optDeleteError } = await adminClient.from("path_options").delete().eq("episode_id", episodeId);
-          if (optDeleteError) throw new Error(optDeleteError.message);
-
-          const { error: subDeleteError } = await adminClient.from("submissions").delete().eq("episode_id", episodeId);
-          if (subDeleteError) throw new Error(subDeleteError.message);
-        }
-
-        const nextExpiry = new Date(nowMs + DURATION_SUBMIT).toISOString();
-        const { error: phaseError } = await adminClient
-          .from("game_state")
-          .update({ current_phase: "SUBMIT", phase_expiry: nextExpiry })
-          .eq("id", GAME_STATE_SINGLETON_ID);
-
-        if (phaseError) throw new Error(phaseError.message);
-
-        return NextResponse.json({ ok: true, status: "Transitioned", from: "PROCESS", to: "SUBMIT", phase_expiry: nextExpiry });
+        console.log("Waiting for Admin Director to publish next episode.");
+        return NextResponse.json({
+          ok: true,
+          status: "WaitingForDirector",
+          phase: "PROCESS",
+          phase_expiry: gs.phase_expiry ?? null,
+        });
       }
 
       return NextResponse.json({ ok: true, status: "No-op", phase: gs.current_phase, phase_expiry: gs.phase_expiry });
