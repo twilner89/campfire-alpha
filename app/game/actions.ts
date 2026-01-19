@@ -136,56 +136,82 @@ export async function getRecentEchoes(episodeId: string): Promise<EchoRow[]> {
 
   const adminClient = createServerSupabaseClient({ admin: true });
 
-  const selectBase = "id,content_text,created_at,heat";
-  let attempt = await adminClient
+  const isMissingColumn = (msg: string, column: string) => msg.includes(column) && (msg.includes("column") || msg.includes("schema cache"));
+
+  const attempt1 = await adminClient
     .from("submissions")
-    .select(selectBase)
+    .select("id,content_text,created_at,heat")
     .eq("episode_id", id)
     .order("created_at", { ascending: false })
     .limit(30);
 
-  if (attempt.error) {
-    const msg = attempt.error.message.toLowerCase();
-    const missingCreatedAt = msg.includes("created_at") && (msg.includes("column") || msg.includes("schema cache"));
-    if (missingCreatedAt) {
-      attempt = await adminClient
-        .from("submissions")
-        .select(selectBase)
-        .eq("episode_id", id)
-        .order("id", { ascending: false })
-        .limit(30);
-    }
+  if (!attempt1.error) {
+    return ((attempt1.data ?? []) as { id: string; content_text: string; created_at?: string | null; heat?: number | null }[]).map((r) => ({
+      id: r.id,
+      content_text: r.content_text,
+      heat: r.heat ?? 0,
+      created_at: r.created_at ?? null,
+    }));
   }
 
-  if (attempt.error) {
-    const msg = attempt.error.message.toLowerCase();
-    const missingHeatColumn = msg.includes("heat") && (msg.includes("column") || msg.includes("schema cache"));
-    if (missingHeatColumn) {
-      const fallback = await adminClient
-        .from("submissions")
-        .select("id,content_text,created_at")
-        .eq("episode_id", id)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (fallback.error) throw new Error(fallback.error.message);
+  const msg1 = attempt1.error.message.toLowerCase();
+  const missingCreatedAt = isMissingColumn(msg1, "created_at");
+  const missingHeat = isMissingColumn(msg1, "heat");
 
-      return ((fallback.data ?? []) as { id: string; content_text: string; created_at?: string | null }[]).map((r) => ({
-        id: r.id,
-        content_text: r.content_text,
-        heat: 0,
-        created_at: r.created_at ?? null,
-      }));
-    }
+  if (missingCreatedAt && !missingHeat) {
+    const attempt2 = await adminClient
+      .from("submissions")
+      .select("id,content_text,heat")
+      .eq("episode_id", id)
+      .order("id", { ascending: false })
+      .limit(30);
+    if (attempt2.error) throw new Error(attempt2.error.message);
 
-    throw new Error(attempt.error.message);
+    return ((attempt2.data ?? []) as { id: string; content_text: string; heat?: number | null }[]).map((r) => ({
+      id: r.id,
+      content_text: r.content_text,
+      heat: r.heat ?? 0,
+      created_at: null,
+    }));
   }
 
-  return ((attempt.data ?? []) as { id: string; content_text: string; created_at?: string | null; heat?: number | null }[]).map((r) => ({
-    id: r.id,
-    content_text: r.content_text,
-    heat: r.heat ?? 0,
-    created_at: r.created_at ?? null,
-  }));
+  if (missingHeat && !missingCreatedAt) {
+    const attempt2 = await adminClient
+      .from("submissions")
+      .select("id,content_text,created_at")
+      .eq("episode_id", id)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (attempt2.error) throw new Error(attempt2.error.message);
+
+    return ((attempt2.data ?? []) as { id: string; content_text: string; created_at?: string | null }[]).map((r) => ({
+      id: r.id,
+      content_text: r.content_text,
+      heat: 0,
+      created_at: r.created_at ?? null,
+    }));
+  }
+
+  if (missingHeat && missingCreatedAt) {
+    const attempt2 = await adminClient
+      .from("submissions")
+      .select("id,content_text")
+      .eq("episode_id", id)
+      .order("id", { ascending: false })
+      .limit(30);
+
+    if (attempt2.error) throw new Error(attempt2.error.message);
+
+    return ((attempt2.data ?? []) as { id: string; content_text: string }[]).map((r) => ({
+      id: r.id,
+      content_text: r.content_text,
+      heat: 0,
+      created_at: null,
+    }));
+  }
+
+  throw new Error(attempt1.error.message);
 }
 
 export async function getFireHealth(episodeId: string): Promise<{ ok: true; percent: number; points: number; target: number }> {
