@@ -42,7 +42,7 @@ export default function CampfireOwl(props: { isTalking: boolean; className?: str
     }
 
     const scheduleBlink = () => {
-      const delayMs = 3000 + Math.floor(Math.random() * 4000);
+      const delayMs = 4000 + Math.floor(Math.random() * 2000);
       blinkTimeout = setTimeout(() => {
         setCurrentSrc(blinkSrc);
         blinkFrameTimeout = setTimeout(() => {
@@ -61,7 +61,7 @@ export default function CampfireOwl(props: { isTalking: boolean; className?: str
   }, [blinkSrc, idleSrc, isTalking, talkSrc]);
 
   return (
-    <div className={`relative aspect-square w-full ${isTalking ? "campfire-breathe" : ""} ${className ?? ""}`.trim()}>
+    <div className={`relative aspect-square w-full ${className ?? ""}`.trim()}>
       <Image
         src={currentSrc}
         alt="Owl"
