@@ -56,13 +56,19 @@ export default function GenesisForm(props: {
     setLoading("ignite");
     setMessage(null);
     try {
-      await igniteCampaign({
+      const res = await igniteCampaign({
         accessToken,
         title: title.trim(),
         genre: genre.trim(),
         tone: tone.trim(),
         premise: premise.trim(),
       });
+
+      if (!res.ok) {
+        setMessage(res.error);
+        return;
+      }
+
       setMessage("Campaign ignited. Episode 1 published. Phase set to LISTEN.");
       onIgnited?.();
     } catch (e) {

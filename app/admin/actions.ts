@@ -595,93 +595,97 @@ export async function igniteCampaign(input: {
   genre: string;
   tone: string;
   premise: string;
-}) {
-  const { adminClient } = await requireAdmin(input.accessToken);
+}): Promise<{ ok: true; bibleId: string; episodeId: string } | { ok: false; error: string }> {
+  try {
+    const { adminClient } = await requireAdmin(input.accessToken);
 
-  const title = input.title.trim();
-  const genre = input.genre.trim();
-  const tone = input.tone.trim();
-  const premise = input.premise.trim();
+    const title = input.title.trim();
+    const genre = input.genre.trim();
+    const tone = input.tone.trim();
+    const premise = input.premise.trim();
 
-  if (!title || !genre || !tone || !premise) {
-    throw new Error("Title, Genre, Tone, and Premise are required.");
-  }
-
-  const { bible, episode1 } = await generateDramaticaBible(genre, premise, tone);
-
-  const { data: insertedBible, error: bibleError } = await adminClient
-    .from("series_bible")
-    .insert({
-      title,
-      genre,
-      tone,
-      premise,
-      bible_json: bible,
-    })
-    .select("id")
-    .single();
-
-  if (bibleError) {
-    throw new Error(bibleError.message);
-  }
-
-  const { data: insertedEpisode, error: episodeError } = await adminClient
-    .from("episodes")
-    .insert({
-      title: `${title} — Episode 1`,
-      narrative_text: episode1,
-      audio_url: null,
-      season_num: 1,
-      episode_num: 1,
-    })
-    .select("id")
-    .single();
-
-  if (episodeError) {
-    throw new Error(episodeError.message);
-  }
-
-  const episodeId = insertedEpisode.id;
-
-  const { error: gameStateError } = await adminClient
-    .from("game_state")
-    .update({
-      current_phase: "LISTEN",
-      current_episode_id: episodeId,
-      current_series_bible_id: insertedBible.id,
-      phase_expiry: null,
-    })
-    .eq("id", GAME_STATE_SINGLETON_ID);
-
-  if (gameStateError) {
-    // Backward-compatible fallback if columns haven't been applied yet.
-    const msg = gameStateError.message.toLowerCase();
-    const missingBibleColumn = msg.includes("current_series_bible_id");
-    const missingExpiryColumn = msg.includes("phase_expiry");
-    if (!missingBibleColumn && !missingExpiryColumn) {
-      throw new Error(gameStateError.message);
+    if (!title || !genre || !tone || !premise) {
+      return { ok: false as const, error: "Title, Genre, Tone, and Premise are required." };
     }
 
-    const fallbackUpdate: { current_phase: "LISTEN"; current_episode_id: string; current_series_bible_id?: string; phase_expiry?: null } = {
-      current_phase: "LISTEN",
-      current_episode_id: episodeId,
-      current_series_bible_id: insertedBible.id,
-      phase_expiry: null,
-    };
-    if (missingBibleColumn) delete fallbackUpdate.current_series_bible_id;
-    if (missingExpiryColumn) delete fallbackUpdate.phase_expiry;
+    const { bible, episode1 } = await generateDramaticaBible(genre, premise, tone);
 
-    const { error: fallbackError } = await adminClient
+    const { data: insertedBible, error: bibleError } = await adminClient
+      .from("series_bible")
+      .insert({
+        title,
+        genre,
+        tone,
+        premise,
+        bible_json: bible,
+      })
+      .select("id")
+      .single();
+
+    if (bibleError || !insertedBible?.id) {
+      return { ok: false as const, error: bibleError?.message ?? "Failed to create series bible." };
+    }
+
+    const { data: insertedEpisode, error: episodeError } = await adminClient
+      .from("episodes")
+      .insert({
+        title: `${title} — Episode 1`,
+        narrative_text: episode1,
+        audio_url: null,
+        season_num: 1,
+        episode_num: 1,
+      })
+      .select("id")
+      .single();
+
+    if (episodeError || !insertedEpisode?.id) {
+      return { ok: false as const, error: episodeError?.message ?? "Failed to create episode." };
+    }
+
+    const episodeId = insertedEpisode.id;
+
+    const { error: gameStateError } = await adminClient
       .from("game_state")
-      .update(fallbackUpdate)
+      .update({
+        current_phase: "LISTEN",
+        current_episode_id: episodeId,
+        current_series_bible_id: insertedBible.id,
+        phase_expiry: null,
+      })
       .eq("id", GAME_STATE_SINGLETON_ID);
 
-    if (fallbackError) {
-      throw new Error(fallbackError.message);
-    }
-  }
+    if (gameStateError) {
+      // Backward-compatible fallback if columns haven't been applied yet.
+      const msg = gameStateError.message.toLowerCase();
+      const missingBibleColumn = msg.includes("current_series_bible_id");
+      const missingExpiryColumn = msg.includes("phase_expiry");
+      if (!missingBibleColumn && !missingExpiryColumn) {
+        return { ok: false as const, error: gameStateError.message };
+      }
 
-  return { ok: true as const, bibleId: insertedBible.id, episodeId };
+      const fallbackUpdate: { current_phase: "LISTEN"; current_episode_id: string; current_series_bible_id?: string; phase_expiry?: null } = {
+        current_phase: "LISTEN",
+        current_episode_id: episodeId,
+        current_series_bible_id: insertedBible.id,
+        phase_expiry: null,
+      };
+      if (missingBibleColumn) delete fallbackUpdate.current_series_bible_id;
+      if (missingExpiryColumn) delete fallbackUpdate.phase_expiry;
+
+      const { error: fallbackError } = await adminClient
+        .from("game_state")
+        .update(fallbackUpdate)
+        .eq("id", GAME_STATE_SINGLETON_ID);
+
+      if (fallbackError) {
+        return { ok: false as const, error: fallbackError.message };
+      }
+    }
+
+    return { ok: true as const, bibleId: insertedBible.id, episodeId };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : "Failed to ignite campaign." };
+  }
 }
 
 export async function synthesizeOptions(accessToken: string, episodeId: string): Promise<PathOptionDraft[]> {
