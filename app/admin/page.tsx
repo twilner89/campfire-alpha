@@ -4,6 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 import AdminPanel from "./AdminPanel";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default function AdminPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-16">
