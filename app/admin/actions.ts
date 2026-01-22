@@ -340,9 +340,14 @@ export async function oraclePremises(
     genre: string;
     tone: string;
   },
-): Promise<string[]> {
-  await requireAdmin(accessToken);
-  return generateOraclePremises({ title: input.title, genre: input.genre, tone: input.tone });
+): Promise<{ ok: true; premises: string[] } | { ok: false; error: string }> {
+  try {
+    await requireAdmin(accessToken);
+    const premises = await generateOraclePremises({ title: input.title, genre: input.genre, tone: input.tone });
+    return { ok: true as const, premises };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : "Failed to generate premises." };
+  }
 }
 
 export async function getActiveSeriesBible(accessToken: string): Promise<ActiveSeriesBible | null> {

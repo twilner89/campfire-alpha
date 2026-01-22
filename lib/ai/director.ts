@@ -1,10 +1,10 @@
 "use server";
 
-import { gemini } from "@/lib/ai/gemini";
+import { getGemini } from "@/lib/ai/gemini";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 async function generateText(model: string, prompt: string) {
-  const m = gemini.getGenerativeModel({ model });
+  const m = getGemini().getGenerativeModel({ model });
   const result = await m.generateContent(prompt);
   return result.response.text();
 }

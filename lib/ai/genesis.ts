@@ -1,6 +1,6 @@
 "use server";
 
-import { gemini } from "@/lib/ai/gemini";
+import { getGemini } from "@/lib/ai/gemini";
 import type { DramaticaStructure } from "@/types/ncp";
 
 type AnyRecord = Record<string, unknown>;
@@ -65,7 +65,7 @@ async function generateTextWithRetry(input: { model: string; prompt: string; lab
   const maxAttempts = input.maxAttempts ?? 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const m = gemini.getGenerativeModel({ model: input.model });
+      const m = getGemini().getGenerativeModel({ model: input.model });
       const result = await m.generateContent(input.prompt);
       return result.response.text();
     } catch (e) {

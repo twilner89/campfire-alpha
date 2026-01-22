@@ -1,6 +1,12 @@
 "use server";
 
-import { gemini } from "@/lib/ai/gemini";
+import { getGemini } from "@/lib/ai/gemini";
+
+async function generateText(model: string, prompt: string) {
+  const m = getGemini().getGenerativeModel({ model });
+  const result = await m.generateContent(prompt);
+  return result.response.text();
+}
 
 function stripJsonFence(text: string) {
   const trimmed = text.trim();
@@ -64,14 +70,7 @@ Return ONLY valid JSON: an array of exactly ${count} strings.`;
 
   for (const modelName of models) {
     try {
-      const model = gemini.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          temperature: 0.9,
-        },
-      });
-      const result = await model.generateContent(prompt);
-      text = result.response.text();
+      text = await generateText(modelName, prompt);
       break;
     } catch (e) {
       lastError = e;

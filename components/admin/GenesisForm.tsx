@@ -35,9 +35,15 @@ export default function GenesisForm(props: {
         genre: genre.trim(),
         tone: tone.trim(),
       });
-      setOracleSuggestions(res);
-      if (!premise.trim() && res[0]) {
-        setPremise(res[0]);
+
+      if (!res.ok) {
+        setMessage(res.error);
+        return;
+      }
+
+      setOracleSuggestions(res.premises);
+      if (!premise.trim() && res.premises[0]) {
+        setPremise(res.premises[0]);
       }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to generate premises.");

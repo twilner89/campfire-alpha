@@ -2,8 +2,6 @@ import dns from "node:dns";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const apiKey = process.env.GOOGLE_API_KEY;
-
 // Helps avoid persistent "fetch failed" errors on some networks where IPv6 DNS resolution is flaky.
 try {
   dns.setDefaultResultOrder("ipv4first");
@@ -11,8 +9,14 @@ try {
   // noop
 }
 
-if (!apiKey) {
-  throw new Error("Missing GOOGLE_API_KEY");
-}
+let geminiSingleton: GoogleGenerativeAI | null = null;
 
-export const gemini = new GoogleGenerativeAI(apiKey);
+export function getGemini(): GoogleGenerativeAI {
+  if (geminiSingleton) return geminiSingleton;
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing GOOGLE_API_KEY");
+  }
+  geminiSingleton = new GoogleGenerativeAI(apiKey);
+  return geminiSingleton;
+}
