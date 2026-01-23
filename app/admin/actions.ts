@@ -333,6 +333,138 @@ export async function simulateSubmissions(accessToken: string, episodeId: string
   return { ok: true as const, inserted };
 }
 
+export async function listSubmissions(input: {
+  accessToken: string;
+  limit?: number;
+  offset?: number;
+  episodeId?: string;
+}): Promise<
+  | {
+      ok: true;
+      submissions: {
+        id: string;
+        episodeId: string;
+        episodeLabel: string;
+        userId: string;
+        username: string | null;
+        contentText: string;
+        isSynthetic: boolean;
+        heat: number;
+        createdAt: string | null;
+      }[];
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const { adminClient } = await requireAdmin(input.accessToken);
+
+    const limit = Number.isFinite(input.limit as number) ? Math.max(1, Math.min(200, Math.floor(input.limit as number))) : 50;
+    const offset = Number.isFinite(input.offset as number) ? Math.max(0, Math.floor(input.offset as number)) : 0;
+
+    const isMissingColumn = (msg: string, column: string) => msg.includes(column) && (msg.includes("column") || msg.includes("schema cache"));
+
+    const baseCols = ["id", "user_id", "episode_id", "content_text", "is_synthetic"];
+    const desiredCols = [...baseCols, "created_at", "heat"];
+
+    const episodeId = (input.episodeId ?? "").trim();
+    const baseQuery1 = adminClient.from("submissions").select(desiredCols.join(","));
+    const attempt1 = await (episodeId ? baseQuery1.eq("episode_id", episodeId) : baseQuery1)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    let rows: any[] | null = attempt1.data as any[] | null;
+    let err = attempt1.error;
+
+    if (err) {
+      const msg = err.message.toLowerCase();
+      const missingCreatedAt = isMissingColumn(msg, "created_at");
+      const missingHeat = isMissingColumn(msg, "heat");
+
+      const cols = [...baseCols];
+      if (!missingCreatedAt) cols.push("created_at");
+      if (!missingHeat) cols.push("heat");
+
+      const orderCol = missingCreatedAt ? "id" : "created_at";
+
+      const baseQuery2 = adminClient.from("submissions").select(cols.join(","));
+      const attempt2 = await (episodeId ? baseQuery2.eq("episode_id", episodeId) : baseQuery2)
+        .order(orderCol, { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      rows = attempt2.data as any[] | null;
+      err = attempt2.error;
+    }
+
+    if (err) {
+      return { ok: false as const, error: err.message };
+    }
+
+    const safeRows = rows ?? [];
+
+    const episodeIds = Array.from(new Set(safeRows.map((r) => String(r.episode_id)).filter(Boolean)));
+    const userIds = Array.from(new Set(safeRows.map((r) => String(r.user_id)).filter(Boolean)));
+
+    const episodesById = new Map<string, { title: string; season_num: number; episode_num: number }>();
+    if (episodeIds.length > 0) {
+      const { data: episodes, error: episodeError } = await adminClient
+        .from("episodes")
+        .select("id,title,season_num,episode_num")
+        .in("id", episodeIds);
+
+      if (episodeError) {
+        return { ok: false as const, error: episodeError.message };
+      }
+
+      for (const ep of episodes ?? []) {
+        episodesById.set(ep.id, { title: ep.title, season_num: ep.season_num, episode_num: ep.episode_num });
+      }
+    }
+
+    const usernamesById = new Map<string, string | null>();
+    if (userIds.length > 0) {
+      const { data: profiles, error: profileError } = await adminClient
+        .from("profiles")
+        .select("id,username")
+        .in("id", userIds);
+
+      if (profileError) {
+        return { ok: false as const, error: profileError.message };
+      }
+
+      for (const p of profiles ?? []) {
+        usernamesById.set(p.id, (p as { username: string | null }).username ?? null);
+      }
+    }
+
+    const submissions = safeRows.map((r) => {
+      const episodeId = String(r.episode_id);
+      const userId = String(r.user_id);
+      const ep = episodesById.get(episodeId) ?? null;
+      const username = usernamesById.get(userId) ?? null;
+      const createdAt = typeof r.created_at === "string" ? r.created_at : null;
+      const heat = typeof r.heat === "number" ? r.heat : Number.isFinite(r.heat) ? Number(r.heat) : 0;
+
+      const episodeLabel = ep ? `S${ep.season_num}E${ep.episode_num}: ${ep.title}` : episodeId;
+
+      return {
+        id: String(r.id),
+        episodeId,
+        episodeLabel,
+        userId,
+        username,
+        contentText: String(r.content_text ?? ""),
+        isSynthetic: Boolean(r.is_synthetic),
+        heat,
+        createdAt,
+      };
+    });
+
+    return { ok: true as const, submissions };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : "Failed to list submissions." };
+  }
+}
+
 export async function oraclePremises(
   accessToken: string,
   input: {

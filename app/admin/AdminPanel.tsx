@@ -13,7 +13,7 @@ import StoryBibleViewer from "@/components/admin/StoryBibleViewer";
 import PhaseTimer from "@/components/game/PhaseTimer";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import type { Episode, GamePhase, GameState } from "@/types/database";
-import { resetCampaign } from "@/app/admin/actions";
+import { listSubmissions, resetCampaign } from "@/app/admin/actions";
 
 const GAME_STATE_SINGLETON_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -49,6 +49,25 @@ export default function AdminPanel() {
 
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [gameState, setGameState] = useState<GameState | null>(null);
+
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [submissionsMessage, setSubmissionsMessage] = useState<string | null>(null);
+  const [submissions, setSubmissions] = useState<
+    {
+      id: string;
+      episodeId: string;
+      episodeLabel: string;
+      userId: string;
+      username: string | null;
+      contentText: string;
+      isSynthetic: boolean;
+      heat: number;
+      createdAt: string | null;
+    }[]
+  >([]);
+  const [submissionsOffset, setSubmissionsOffset] = useState(0);
+  const [submissionsEpisodeId, setSubmissionsEpisodeId] = useState<string>("");
+  const submissionsPageSize = 50;
 
   const currentEpisode = useMemo(() => {
     if (!gameState?.current_episode_id) return null;
@@ -265,6 +284,53 @@ export default function AdminPanel() {
     };
   }, [refreshAuth, supabase]);
 
+  const formatCreatedAt = useCallback((value: string | null) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (!Number.isFinite(d.getTime())) return value;
+    return d.toLocaleString();
+  }, []);
+
+  const loadSubmissions = useCallback(
+    async (mode: "reset" | "append") => {
+      if (!accessToken) return;
+      if (!isAdmin) return;
+
+      setSubmissionsLoading(true);
+      setSubmissionsMessage(null);
+
+      const offset = mode === "append" ? submissionsOffset : 0;
+      const res = await listSubmissions({
+        accessToken,
+        limit: submissionsPageSize,
+        offset,
+        episodeId: submissionsEpisodeId.trim() ? submissionsEpisodeId.trim() : undefined,
+      });
+
+      if (!res.ok) {
+        setSubmissionsLoading(false);
+        setSubmissionsMessage(res.error);
+        return;
+      }
+
+      if (mode === "append") {
+        setSubmissions((prev) => [...prev, ...res.submissions]);
+        setSubmissionsOffset(offset + res.submissions.length);
+      } else {
+        setSubmissions(res.submissions);
+        setSubmissionsOffset(res.submissions.length);
+      }
+
+      setSubmissionsLoading(false);
+    },
+    [accessToken, isAdmin, submissionsEpisodeId, submissionsOffset],
+  );
+
+  useEffect(() => {
+    if (!accessToken || !isAdmin) return;
+    void loadSubmissions("reset");
+  }, [accessToken, isAdmin, submissionsEpisodeId, loadSubmissions]);
+
   async function handleSignOut() {
     setLoading(true);
     setMessage(null);
@@ -421,6 +487,79 @@ export default function AdminPanel() {
       </Card>
 
       <StoryBibleViewer accessToken={accessToken!} disabled={loading} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Submissions</CardTitle>
+          <CardDescription>Browse recent submissions across episodes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Episode</label>
+              <select
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={submissionsEpisodeId}
+                onChange={(e) => {
+                  setSubmissionsEpisodeId(e.target.value);
+                  setSubmissionsOffset(0);
+                }}
+              >
+                <option value="">All episodes</option>
+                {episodes.map((ep) => (
+                  <option key={ep.id} value={ep.id}>
+                    S{ep.season_num}E{ep.episode_num}: {ep.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => void loadSubmissions("reset")} disabled={submissionsLoading}>
+                {submissionsLoading ? "Loading..." : "Refresh"}
+              </Button>
+              <Button onClick={() => void loadSubmissions("append")} disabled={submissionsLoading}>
+                Load more
+              </Button>
+            </div>
+          </div>
+
+          {submissionsMessage ? <p className="text-sm text-muted-foreground">{submissionsMessage}</p> : null}
+
+          <div className="text-xs text-muted-foreground">Showing {submissions.length} submissions</div>
+
+          <div className="overflow-x-auto rounded-md border border-border">
+            <div className="min-w-[900px]">
+              <div className="grid grid-cols-[180px_220px_160px_70px_1fr_90px] gap-2 border-b border-border bg-muted/40 px-3 py-2 text-xs font-medium">
+                <div>Created</div>
+                <div>Episode</div>
+                <div>User</div>
+                <div className="text-right">Heat</div>
+                <div>Text</div>
+                <div>Type</div>
+              </div>
+              {submissions.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-muted-foreground">No submissions found.</div>
+              ) : (
+                submissions.map((s) => (
+                  <div key={s.id} className="grid grid-cols-[180px_220px_160px_70px_1fr_90px] gap-2 border-b border-border px-3 py-2 text-xs">
+                    <div className="text-muted-foreground">{formatCreatedAt(s.createdAt)}</div>
+                    <div className="truncate" title={s.episodeLabel}>
+                      {s.episodeLabel}
+                    </div>
+                    <div className="truncate" title={s.userId}>
+                      {s.username ?? s.userId}
+                    </div>
+                    <div className="text-right tabular-nums">{s.heat}</div>
+                    <div className="whitespace-pre-wrap break-words">{s.contentText}</div>
+                    <div className="text-muted-foreground">{s.isSynthetic ? "synthetic" : "player"}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
